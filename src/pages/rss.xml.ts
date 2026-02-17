@@ -25,9 +25,20 @@ export async function GET(context: APIContext) {
 	const container = await AstroContainer.create({ renderers });
 	const feedItems: RSSFeedItem[] = [];
 	for (const post of blog) {
-		const { Content } = await render(post);
-		const rawContent = await container.renderToString(Content);
-		const cleanedContent = stripInvalidXmlChars(rawContent);
+		// 检查是否为 Notion 文章
+		const isNotionPost = "body" in post && !("collection" in post);
+
+		let content: string;
+		if (isNotionPost) {
+			// Notion 文章：直接使用 body 作为内容
+			content = (post as { body?: string }).body || "";
+		} else {
+			// 本地文章：使用 Astro render
+			const { Content } = await render(post);
+			const rawContent = await container.renderToString(Content);
+			content = rawContent;
+		}
+		const cleanedContent = stripInvalidXmlChars(content);
 		feedItems.push({
 			title: post.data.title,
 			pubDate: post.data.published,

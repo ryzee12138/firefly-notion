@@ -1,14 +1,15 @@
 ---
-import { render } from "astro:content";
+import { render, type CollectionEntry } from "astro:content";
 import * as path from "node:path";
 import Comment from "@components/comment/index.astro";
 import Markdown from "@components/common/Markdown.astro";
 import KatexManager from "@components/features/KatexManager.astro";
 import License from "@components/misc/License.astro";
+import PostPassword from "@components/post/PostPassword.astro";
 import I18nKey from "@i18n/i18nKey";
 import { i18n } from "@i18n/translation";
 import MainGridLayout from "@layouts/MainGridLayout.astro";
-import { getSortedPosts } from "@utils/content-utils";
+import { getSortedPosts, type NotionPostEntry } from "@utils/content-utils";
 import {
 	getFileDirFromPath,
 	getPostUrlBySlug,
@@ -42,9 +43,49 @@ export async function getStaticPaths() {
 }
 
 const { entry } = Astro.props;
-const { Content, headings } = await render(entry);
 
-const { remarkPluginFrontmatter } = await render(entry);
+// 判断是否为 Notion 文章（通过检查是否有 body 属性且没有 collection 属性）
+const isNotionPost = "body" in entry && !("collection" in entry);
+
+// 获取文章内容和元数据
+let Content: any;
+let notionBody = "";
+let headings: Array<{ depth: number; slug: string; text: string }> = [];
+let remarkPluginFrontmatter: { words: number; minutes: number } = { words: 0, minutes: 0 };
+
+if (isNotionPost) {
+	// Notion 文章：直接渲染 markdown 内容
+	const notionEntry = entry as NotionPostEntry;
+	notionBody = notionEntry.body || "";
+
+	// 估算字数和阅读时间
+	const wordCount = notionBody.split(/\s+/).length;
+	remarkPluginFrontmatter = {
+		words: wordCount,
+		minutes: Math.ceil(wordCount / 200),
+	};
+
+	// 简单提取标题作为 headings
+	headings = [];
+	const lines = notionBody.split("\n");
+	for (const line of lines) {
+		const match = line.match(/^(#{1,3})\s+(.+)$/);
+		if (match) {
+			headings.push({
+				depth: match[1].length,
+				slug: match[2].toLowerCase().replace(/\s+/g, "-"),
+				text: match[2],
+			});
+		}
+	}
+} else {
+	// 本地文件：使用 Astro 的 render()
+	const rendered = await render(entry as CollectionEntry<"posts">);
+	Content = rendered.Content;
+	headings = rendered.headings || [];
+	const { remarkPluginFrontmatter: rpm } = await render(entry as CollectionEntry<"posts">);
+	remarkPluginFrontmatter = rpm as { words: number; minutes: number };
+}
 
 const bannerPostMeta = {
 	title: entry.data.title,
@@ -66,7 +107,7 @@ if (processedImage) {
 		processedImage.startsWith("data:")
 	);
 	if (isLocal) {
-		const basePath = getFileDirFromPath(entry.filePath || "");
+		const basePath = getFileDirFromPath((entry as CollectionEntry<"posts">).filePath || "");
 		const files = import.meta.glob<ImageMetadata>("../../**", {
 			import: "default",
 		});
@@ -138,7 +179,7 @@ const jsonLd = {
 >
   <!-- KaTeX 按需加载 - 仅在文章页面 -->
   <KatexManager slot="head" />
-  
+
   <script
     is:inline
     slot="head"
@@ -231,7 +272,7 @@ const jsonLd = {
             <CoverImage
               id="post-cover"
               src={processedImage}
-              basePath={getFileDirFromPath(entry.filePath || '')}
+              basePath={!isNotionPost ? getFileDirFromPath((entry as CollectionEntry<"posts">).filePath || '') : ''}
               class="mb-8 rounded-xl banner-container onload-animation"
               preview={false}
             />
@@ -239,9 +280,20 @@ const jsonLd = {
         )
       }
 
-      <Markdown class="mb-6 markdown-content onload-animation">
-        <Content />
-      </Markdown>
+      <PostPassword
+        passwordHash={(entry.data as { password?: string }).password}
+        postId={entry.id}
+      >
+        <Markdown class="mb-6 markdown-content onload-animation">
+          {
+            isNotionPost ? (
+              <article set:html={notionBody} />
+            ) : (
+              <Content />
+            )
+          }
+        </Markdown>
+      </PostPassword>
 
       {/* 赞助按钮 & 分享按钮 */}
       {
@@ -425,5 +477,5 @@ const jsonLd = {
   </div>
 
   <!-- 评论 -->
-  {entry.data.comment && <Comment post={entry} />}
+  {entry.data.comment && <Comment post={entry as CollectionEntry<"posts">} />}
 </MainGridLayout>
