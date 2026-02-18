@@ -14,7 +14,11 @@ import { processPostImages, replaceImageUrlsInMarkdown } from "./notion-image";
 
 // 判断数据源类型
 const isNotionSource = (): boolean => {
-	return process.env.CONTENT_SOURCE === "notion";
+	// 支持 .env 和 .env.local，确保 CentOS/Windows 兼容
+	const source = process.env.CONTENT_SOURCE;
+	// 开发调试时可取消下面注释
+	// console.log('[Firefly] CONTENT_SOURCE:', source);
+	return source === "notion";
 };
 
 // ==========================================
@@ -30,7 +34,15 @@ async function getNotionPosts(): Promise<NotionPostEntry[]> {
 		const cached = getCachedData<NotionPostEntry[]>(cacheKey);
 		if (cached) {
 			console.log("[Notion] Using cached posts");
-			return cached;
+			// 将缓存中的日期字符串还原为 Date 对象
+			return cached.map(post => ({
+				...post,
+				data: {
+					...post.data,
+					published: new Date(post.data.published),
+					updated: post.data.updated ? new Date(post.data.updated) : undefined,
+				}
+			}));
 		}
 	}
 
@@ -96,7 +108,15 @@ async function getNotionPosts(): Promise<NotionPostEntry[]> {
 		const fallback = getFallbackCache<NotionPostEntry[]>();
 		if (fallback) {
 			console.warn("[Notion] Using fallback cache due to error");
-			return fallback;
+			// 将缓存中的日期字符串还原为 Date 对象
+			return fallback.map(post => ({
+				...post,
+				data: {
+					...post.data,
+					published: new Date(post.data.published),
+					updated: post.data.updated ? new Date(post.data.updated) : undefined,
+				}
+			}));
 		}
 
 		throw error;

@@ -130,14 +130,21 @@ export function parseNotionPage(page: PageObjectResponse): NotionPostEntry | nul
 	const title = getPropertyValue<string>(properties, "Title", "").trim() || "Untitled";
 
 	// 提取发布日期
-	const publishedValue = getPropertyValue<Date | string>(properties, "Published", "");
-	const published = publishedValue instanceof Date
-		? publishedValue
-		: new Date();
+	let published: Date;
+	const publishedProp = properties["Published"] as { type: string; date?: { start?: string } } | undefined;
+	if (publishedProp?.type === "date" && publishedProp.date?.start) {
+		published = new Date(publishedProp.date.start);
+	} else {
+		console.warn(`[Notion] 文章 "${title}" 没有 Published 日期，使用今天日期`);
+		published = new Date();
+	}
 
 	// 提取更新日期
-	const updatedValue = getPropertyValue<Date | string>(properties, "Updated", "");
-	const updated = updatedValue instanceof Date ? updatedValue : undefined;
+	let updated: Date | undefined;
+	const updatedProp = properties["Updated"] as { type: string; date?: { start?: string } } | undefined;
+	if (updatedProp?.type === "date" && updatedProp.date?.start) {
+		updated = new Date(updatedProp.date.start);
+	}
 
 	// 提取密码（如有）
 	const password = getPropertyValue<string>(properties, "Password", "").trim();
@@ -346,10 +353,9 @@ class BlockConverter {
 	}
 
 	private convertToggle(block: BlockObjectResponse, depth: number): string {
-		
 		const richText = (block as any).toggle?.rich_text || [];
 		const summary = richTextToMarkdown(richText);
-		// Toggle 的内容在子 blocks 中，这里只返回标题
+		// Toggle 的内容在子 blocks 中，这里只返回开头标签（不包括闭合标签）
 		return summary ? `<details><summary>${summary}</summary>\n\n` : "";
 	}
 
@@ -386,15 +392,30 @@ export function convertBlocksToMarkdown(
 	imageUrls: Array<{ original: string; filename: string }>;
 } {
 	const converter = new BlockConverter();
+	const result = convertBlocksRecursively(blocks, converter, 0);
+	return {
+		markdown: result.markdown.trim(),
+		imageUrls: converter.getImageUrls(),
+	};
+}
+
+// 递归转换 blocks，支持嵌套结构
+function convertBlocksRecursively(
+	blocks: BlockObjectResponse[],
+	converter: BlockConverter,
+	depth: number,
+	parentType?: string,
+): { markdown: string; processedCount: number } {
 	let markdown = "";
+	let processedCount = 0;
 
 	// 处理列表连续性
 	let inBulletedList = false;
 	let inNumberedList = false;
 
-	for (let i = 0; i < blocks.length; i++) {
+	let i = 0;
+	while (i < blocks.length) {
 		const block = blocks[i];
-		const nextBlock = blocks[i + 1];
 
 		// 处理列表连续性
 		if (block.type !== "bulleted_list_item" && inBulletedList) {
@@ -409,29 +430,81 @@ export function convertBlocksToMarkdown(
 		if (block.type === "numbered_list_item") inNumberedList = true;
 
 		// 转换 block
-		const converted = converter.convert(block);
+		const converted = converter.convert(block, depth);
 
-		// 处理 column_list 和 column 的闭合标签
+		// 处理 column_list：递归处理其 column 子项
 		if (block.type === "column_list") {
-			markdown += converted;
-			// 寻找所有 column 和它们的内容
+			markdown += converted; // <div class="notion-columns">
+
+			// 寻找并处理所有 column 子项
 			let j = i + 1;
 			while (j < blocks.length && blocks[j].type === "column") {
-				markdown += converter.convert(blocks[j]);
-				// 寻找 column 的子内容（在下一个 blocks 中）
-				// 注意：实际子内容在更深层，这里需要递归处理
+				const columnBlock = blocks[j];\t			markdown += converter.convert(columnBlock, depth + 1); // <div class="notion-column">
+
+				// 递归处理 column 的子内容（column 后面的 blocks 直到下一个 column 或 column_list 结束）
+				const childBlocks: BlockObjectResponse[] = [];
+				let k = j + 1;
+				while (k < blocks.length &&
+					   blocks[k].type !== "column" &&
+					   blocks[k].type !== "column_list") {
+					childBlocks.push(blocks[k]);
+					k++;
+				}
+
+				// 递归转换子 blocks
+				if (childBlocks.length > 0) {
+					const childResult = convertBlocksRecursively(childBlocks, converter, depth + 2, "column");
+					markdown += childResult.markdown;
+				}
+
+				markdown += "  </div>\n"; // close column
+				j = k;
+			}
+
+			markdown += "</div>\n\n"; // close column_list
+			i = j; // 跳过已处理的 blocks
+			processedCount += (j - i);
+			continue;
+		}
+
+		// 跳过已在 column_list 处理中的 column
+		if (block.type === "column") {
+			i++;
+			processedCount++;
+			continue;
+		}
+
+		// 处理 toggle：递归获取子内容
+		if (block.type === "toggle") {
+			markdown += converted; // <details><summary>...</summary>
+
+			// Toggle 的子 blocks 紧随其后
+			const childBlocks: BlockObjectResponse[] = [];
+			let j = i + 1;
+			while (j < blocks.length) {
+				// 简单的深度检测：如果遇到同级的 block，停止
+				if (isTopLevelBlock(blocks[j])) break;
+				childBlocks.push(blocks[j]);
 				j++;
 			}
-			// Column list 结束，添加闭合标签
-			for (let k = i + 1; k < j; k++) {
-				markdown += "  </div>\n"; // close column
+
+			if (childBlocks.length > 0) {
+				const childResult = convertBlocksRecursively(childBlocks, converter, depth + 1, "toggle");
+				markdown += childResult.markdown;
+				i = j;
+				processedCount += childBlocks.length;
+			} else {
+				i++;
 			}
-			markdown += "</div>\n\n"; // close column_list
-			i = j - 1; // 跳过已处理的 blocks
-		} else if (block.type !== "column") {
-			// Column 已经在 column_list 处理中被跳过
-			markdown += converted;
+
+			markdown += "</details>\n\n";
+			continue;
 		}
+
+		// 其他 block 直接添加
+		markdown += converted;
+		i++;
+		processedCount++;
 	}
 
 	// 关闭未闭合的列表
@@ -439,10 +512,18 @@ export function convertBlocksToMarkdown(
 		markdown += "\n";
 	}
 
-	return {
-		markdown: markdown.trim(),
-		imageUrls: converter.getImageUrls(),
-	};
+	return { markdown, processedCount };
+}
+
+// 判断是否是顶级 block（用于嵌套检测）
+function isTopLevelBlock(block: BlockObjectResponse): boolean {
+	const topLevelTypes = [
+		"heading_1", "heading_2", "heading_3",
+		"paragraph", "divider",
+		"column_list", "column",
+		"table", "table_row",
+	];
+	return topLevelTypes.includes(block.type);
 }
 
 // 注：由于 NotionPostEntry 和 CollectionEntry 不完全兼容，

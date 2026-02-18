@@ -169,25 +169,94 @@ https://www.notion.so/workspace/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx?v=...
 
 ---
 
-## 5. 使用步骤
+## 5. 使用步骤（Windows 开发 + CentOS 生产）
 
 ### 5.1 安装依赖
 
 ```bash
-npx pnpm install
+npm install
 ```
 
 ### 5.2 配置环境变量
 
+**方案 A：使用 `.env` 文件（推荐，跨平台通用）**
+
 ```bash
-cp .env.example .env.local
-# 编辑 .env.local，填入 NOTION_TOKEN 和 NOTION_DATABASE_ID
+# 复制模板
+cp .env.example .env
+
+# 编辑 .env，填入你的配置
+NOTION_TOKEN=ntn_xxxxxxxxxx
+NOTION_DATABASE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-### 5.3 本地开发
+**方案 B：使用 `.env.local`（仅本地开发）**
 
 ```bash
+cp .env.example .env.local
+# 编辑 .env.local
+```
+
+> **优先级**: `.env.local` > `.env`
+>
+> 建议：
+> - 开发环境：使用 `.env.local`
+> - 生产环境（CentOS）：使用 `.env` 或系统环境变量
+
+### 5.3 本地开发（Windows）
+
+我们使用 `cross-env` + Node.js 脚本来确保跨平台兼容：
+
+```bash
+# 启动开发服务器（自动加载 .env/.env.local）
 npm run dev
+
+# 清除缓存后重启（如果环境变量修改后不生效）
+npm run dev:clean
+```
+
+**工作原理**：
+- `scripts/dev.js` 会先加载 `.env` 或 `.env.local` 文件
+- 然后启动 Astro 开发服务器
+- 自动处理 Windows CRLF 和 CentOS LF 换行符差异
+
+### 5.4 生产构建（CentOS）
+
+```bash
+# 完整构建（含图标生成、构建、搜索索引）
+npm run build
+
+# 仅构建（假设环境变量已通过其他方式设置）
+npm run build:raw
+```
+
+**生产环境配置方式**（任选其一）：
+
+**方式 1：使用 .env 文件**
+```bash
+# 在 CentOS 上创建 .env 文件
+echo "CONTENT_SOURCE=notion" >> .env
+echo "NOTION_TOKEN=your_token" >> .env
+echo "NOTION_DATABASE_ID=your_db_id" >> .env
+npm run build
+```
+
+**方式 2：使用系统环境变量（推荐用于 CI/CD）**
+```bash
+export CONTENT_SOURCE=notion
+export NOTION_TOKEN=your_token
+export NOTION_DATABASE_ID=your_db_id
+npm run build
+```
+
+**方式 3：在 GitHub Actions 等 CI 中**
+```yaml
+- name: Build
+  env:
+    CONTENT_SOURCE: notion
+    NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+    NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+  run: npm run build
 ```
 
 开发环境特性：
