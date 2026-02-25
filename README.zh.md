@@ -124,7 +124,7 @@
    git clone https://github.com/Cuteleaf/Firefly.git
    cd Firefly
    ```
-   
+
    **先 [Fork](https://github.com/CuteLeaf/Firefly/fork) 到自己仓库在克隆（推荐），记得先点 Star 在 Fork 哦！**
 
    ```bash
@@ -135,7 +135,7 @@
    ```bash
    # 如果没有安装 pnpm，先安装
    npm install -g pnpm
-   
+
    # 安装项目依赖
    pnpm install
    ```
@@ -143,7 +143,22 @@
 4. **配置博客：**
    - 编辑 `src/config/` 目录下的配置文件自定义博客设置
 
-5. **启动开发服务器：**
+5. **选择内容源：**
+
+   **方案 A：本地 Markdown 文件（默认）**
+   - 在 `src/content/posts/` 目录下创建文章
+   - 无需额外配置
+
+   **方案 B：Notion 数据库**
+   - 在项目根目录创建 `.env.local` 文件：
+     ```bash
+     CONTENT_SOURCE=notion
+     NOTION_TOKEN=你的_notion_integration_token
+     NOTION_DATABASE_ID=你的_数据库_id
+     ```
+   - 详细配置请查看 [Notion 集成指南](./docs/Notion-Integration-Guide.md)
+
+6. **启动开发服务器：**
    ```bash
    pnpm dev
    ```

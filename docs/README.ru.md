@@ -121,7 +121,7 @@
    git clone https://github.com/Cuteleaf/Firefly.git
    cd Firefly
    ```
-   
+
    **Сначала создайте [Fork](https://github.com/CuteLeaf/Firefly/fork) в свой репозиторий, затем клонируйте (рекомендуется). Не забудьте нажать Star перед Fork!**
 
    ```bash
@@ -132,7 +132,7 @@
    ```bash
    # Установите pnpm, если еще не установлен
    npm install -g pnpm
-   
+
    # Установить зависимости проекта
    pnpm install
    ```
@@ -140,7 +140,22 @@
 4. **Настроить блог:**
    - Отредактируйте конфигурационные файлы в каталоге `src/config/` для настройки блога
 
-5. **Запустить сервер разработки:**
+5. **Выбрать источник контента:**
+
+   **Вариант A: Локальные Markdown файлы (по умолчанию)**
+   - Создавайте статьи в каталоге `src/content/posts/`
+   - Дополнительная настройка не требуется
+
+   **Вариант B: База данных Notion**
+   - Создайте файл `.env.local` в корне проекта:
+     ```bash
+     CONTENT_SOURCE=notion
+     NOTION_TOKEN=your_notion_integration_token
+     NOTION_DATABASE_ID=your_database_id
+     ```
+   - Подробная настройка см. в [Руководстве по интеграции Notion](./Notion-Integration-Guide.md)
+
+6. **Запустить сервер разработки:**
    ```bash
    pnpm dev
    ```

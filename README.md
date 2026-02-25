@@ -120,7 +120,7 @@ If you have useful features and optimizations, please submit a [Pull Request](ht
    git clone https://github.com/Cuteleaf/Firefly.git
    cd Firefly
    ```
-   
+
    **First [Fork](https://github.com/CuteLeaf/Firefly/fork) to your own repository then clone (recommended). Don't forget to Star before Fork!**
 
    ```bash
@@ -131,7 +131,7 @@ If you have useful features and optimizations, please submit a [Pull Request](ht
    ```bash
    # Install pnpm if not installed
    npm install -g pnpm
-   
+
    # Install project dependencies
    pnpm install
    ```
@@ -139,7 +139,22 @@ If you have useful features and optimizations, please submit a [Pull Request](ht
 4. **Configure blog:**
    - Edit configuration files in `src/config/` directory to customize blog settings
 
-5. **Start development server:**
+5. **Choose content source:**
+
+   **Option A: Local Markdown Files (Default)**
+   - Create articles in `src/content/posts/` directory
+   - No additional configuration needed
+
+   **Option B: Notion Database**
+   - Create `.env.local` file in project root:
+     ```bash
+     CONTENT_SOURCE=notion
+     NOTION_TOKEN=your_notion_integration_token
+     NOTION_DATABASE_ID=your_database_id
+     ```
+   - See [Notion Integration Guide](./docs/Notion-Integration-Guide.md) for detailed setup
+
+6. **Start development server:**
    ```bash
    pnpm dev
    ```
