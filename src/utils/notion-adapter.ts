@@ -439,7 +439,8 @@ function convertBlocksRecursively(
 			// 寻找并处理所有 column 子项
 			let j = i + 1;
 			while (j < blocks.length && blocks[j].type === "column") {
-				const columnBlock = blocks[j];\t			markdown += converter.convert(columnBlock, depth + 1); // <div class="notion-column">
+				const columnBlock = blocks[j];
+                markdown += converter.convert(columnBlock, depth + 1); // <div class="notion-column">
 
 				// 递归处理 column 的子内容（column 后面的 blocks 直到下一个 column 或 column_list 结束）
 				const childBlocks: BlockObjectResponse[] = [];
